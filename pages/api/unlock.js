@@ -1,64 +1,35 @@
 export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).end();
+  }
 
+  const { entry } = req.body;
+  console.log("Journal entry:", entry);
 
-const apiKey = process.env.NEXTDNS_API_KEY;
-const openProfileId = process.env.NEXTDNS_OPEN_PROFILE_ID; // "open" profile you want when unlocked
-const lockedProfileId = process.env.NEXTDNS_LOCKED_PROFILE_ID; // the daily "locked" profile to patch if activate isn't available
+  const profileId = process.env.NEXTDNS_LOCKED_PROFILE_ID;
+  const apiKey = process.env.NEXTDNS_API_KEY;
 
+  // Set override to expire at local midnight (23:59)
+  const expires = new Date();
+  expires.setHours(23, 59, 0, 0); // 23:59 today
+  const isoExpires = expires.toISOString();
 
-if (!apiKey || !openProfileId || !lockedProfileId) {
-return res.status(500).json({ error: 'Missing NEXTDNS_API_KEY or profile IDs in environment' });
-}
+  const r = await fetch(`https://api.nextdns.io/profiles/${profileId}/override`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      devices: ["all"],
+      expires: isoExpires
+    })
+  });
 
+  if (!r.ok) {
+    console.error(await r.text());
+    return res.status(500).json({ error: 'Failed to set override' });
+  }
 
-// 1) Try the documented-but-rare activate endpoint (some accounts/CLI expose this)
-try {
-const r = await fetch(`https://api.nextdns.io/profiles/${openProfileId}/activate`, {
-method: 'POST',
-headers: { 'X-Api-Key': apiKey }
-});
-
-
-if (r.ok) {
-console.log('Activated open profile via /activate');
-return res.status(200).json({ ok: true });
-}
-
-
-console.log('/activate returned', r.status);
-} catch (err) {
-console.log('Activate attempt failed:', err.message);
-}
-
-
-// 2) Fallback: patch the currently-locked profile to "disable blocking" (unlock behaviour)
-// This uses the documented PATCH /profiles/:profile endpoint.
-try {
-const unlockBody = {
-settings: {
-blockPage: { enabled: false }
-}
-};
-
-
-const r2 = await fetch(`https://api.nextdns.io/profiles/${lockedProfileId}`, {
-method: 'PATCH',
-headers: { 'X-Api-Key': apiKey, 'Content-Type': 'application/json' },
-body: JSON.stringify(unlockBody)
-});
-
-
-if (!r2.ok) {
-const txt = await r2.text();
-console.error('PATCH unlock failed', r2.status, txt);
-return res.status(500).json({ error: 'Failed to unlock (PATCH failed)', status: r2.status, body: txt });
-}
-
-
-console.log('Patched profile to unlocked (blockPage disabled)');
-return res.status(200).json({ ok: true });
-} catch (err) {
-console.error('Unlock (PATCH) exception', err);
-return res.status(500).json({ error: 'Exception while unlocking' });
-}
+  res.status(200).json({ ok: true });
 }
