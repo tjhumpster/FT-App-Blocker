@@ -1,15 +1,13 @@
-// pages/api/unlock.js
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
   const { entry } = req.body;
   console.log("Journal entry:", entry);
 
-  const profileId = process.env.NEXTDNS_LOCKED_PROFILE_ID;
+  const profileId = process.env.NEXTDNS_OPEN_PROFILE_ID; // Keep your env name
   const apiKey = process.env.NEXTDNS_API_KEY;
 
   try {
-    // Using native fetch in Next.js 13+ (should work on Vercel)
     const r = await fetch(`https://api.nextdns.io/profiles/${profileId}/activate`, {
       method: "POST",
       headers: {
