@@ -1,5 +1,5 @@
 // pages/api/unlock.js
-import fetch from 'node-fetch'; // ensures fetch works on Vercel
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
 export default async function handler(req, res) {
   try {
